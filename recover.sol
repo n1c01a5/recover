@@ -2,7 +2,7 @@ pragma solidity ^0.5.4;
 
 import {CentralizedArbitrator, IArbitrable, Arbitrator} from "./CentralizedArbitrator.sol";
 
-contract recover is IArbitrable {
+contract Recover is IArbitrable {
     
     // **************************** //
     // *    Contract variables    * //
@@ -22,7 +22,7 @@ contract recover is IArbitrable {
         address payable owner; // Owner of the good.
         uint rewardAmount; // Amount of the reward in ETH.
         address addressForEncryption; // Address used to encrypt the link of description and to make a claim. 
-        bytes descriptionLinkEncrypted; // Description link encrypted to chat/find the owner of the good (ex: IPFS URL encrypted with the description).
+        string descriptionEncryptedLink; // Description encrypted link to chat/find the owner of the good (ex: IPFS URL with the encrypted description).
         uint[] claimIDs; // Collection of the claim to give back the good and get the reward.
         uint amountLocked; // Amount locked while a claim is accepted.
         uint timeoutLocked; // Timeout after which the finder can call the function `executePayment`.
@@ -39,7 +39,7 @@ contract recover is IArbitrable {
     struct Claim {
         bytes32 goodID; // Relation one-to-one with the good.
         address payable finder; // Address of the good finder.
-        bytes linkDescription; // Public link description to proof we find the good (ex: IPFS URL with the content).
+        string descriptionLink; // Public link description to proof we found the good (ex: IPFS URL with the content).
         uint lastInteraction; // Last interaction for the dispute procedure.
         uint finderFee; // Total fees paid by the finder.
         uint disputeID; // If dispute exists, the ID of the claim.
@@ -121,14 +121,14 @@ contract recover is IArbitrable {
     /** @dev Add good.
      *  @param _goodID The index of the good.
      *  @param _addressForEncryption Link to the meta-evidence.
-     *  @param _descriptionLinkEncrypted Time after which a party can automatically execute the arbitrable transaction.
+     *  @param _descriptionEncryptedLink Time after which a party can automatically execute the arbitrable transaction.
      *  @param _rewardAmount The recipient of the transaction.
      *  @param _timeoutLocked Timeout after which the finder can call the function `executePayment`.
      */
     function addGood(
         bytes32 _goodID,
         address _addressForEncryption,
-        bytes memory _descriptionLinkEncrypted,
+        string memory _descriptionEncryptedLink,
         uint _rewardAmount,
         uint _timeoutLocked
     ) public {
@@ -139,7 +139,7 @@ contract recover is IArbitrable {
             owner: msg.sender, // The owner of the good.
             rewardAmount: _rewardAmount, // The reward to find the good.
             addressForEncryption: _addressForEncryption, // Address used to encrypt the link descritpion.
-            descriptionLinkEncrypted: _descriptionLinkEncrypted, // Description link encrypted to chat/find the owner of the good.
+            descriptionEncryptedLink: _descriptionEncryptedLink, // Description encrypted link to chat/find the owner of the good.
             claimIDs: new uint[](0), // Empty array. There is no claims at this moment.
             amountLocked: 0, // Amount locked is 0. This variable is setting when there an accepting claim.
             timeoutLocked: _timeoutLocked, // If the a claim is accepted, time while the amount is locked.
@@ -151,25 +151,25 @@ contract recover is IArbitrable {
         owners[msg.sender].goodIDs.push(_goodID);
 
         // Store the encrypted link in the meta-evidence.
-        emit MetaEvidence(uint(_goodID), string(_descriptionLinkEncrypted));
+        emit MetaEvidence(uint(_goodID), _descriptionEncryptedLink);
     }
     
     /** @dev Change the address used to encrypt the description link and the description.
      *  @param _goodID The index of the good.
      *  @param _addressForEncryption Time after which a party can automatically execute the arbitrable transaction.
-     *  @param _descriptionLinkEncrypted The recipient of the transaction.
+     *  @param _descriptionEncryptedLink The recipient of the transaction.
      */
     function changeAddressAndDescriptionEncrypted(
         bytes32 _goodID,
         address _addressForEncryption, 
-        bytes memory _descriptionLinkEncrypted
+        string memory _descriptionEncryptedLink
     ) public {
         Good storage good = goods[_goodID];
         
         require(msg.sender == good.owner, "Must be the owner of the good.");
 
         good.addressForEncryption = _addressForEncryption;
-        good.descriptionLinkEncrypted = _descriptionLinkEncrypted;
+        good.descriptionEncryptedLink = _descriptionEncryptedLink;
     }
     
     /** @dev Change the reward amount of the good.
@@ -211,9 +211,13 @@ contract recover is IArbitrable {
     /** @dev Claim a good.
      *  @param _goodID The index of the good.
      *  @param _finder The address of the finder.
-     *  @param _linkDescription The link to the description of the good (optionnal).
+     *  @param _descriptionLink The link to the description of the good (optionnal).
      */
-    function claim(bytes32 _goodID, address payable _finder, bytes memory _linkDescription) public {
+    function claim(
+        bytes32 _goodID, 
+        address payable _finder, 
+        string memory _descriptionLink
+    ) public {
         Good storage good = goods[_goodID];
         
         require(
@@ -224,7 +228,7 @@ contract recover is IArbitrable {
         claims.push(Claim({
             goodID: _goodID,
             finder: _finder,
-            linkDescription: _linkDescription,
+            descriptionLink: _descriptionLink,
             lastInteraction: now,
             finderFee: 0,
             disputeID: 0,
