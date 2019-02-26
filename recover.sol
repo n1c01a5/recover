@@ -115,6 +115,7 @@ contract recover is IArbitrable {
         arbitrator = Arbitrator(_arbitrator);
         arbitratorExtraData = _arbitratorExtraData;
         feeTimeout = _feeTimeout;
+        claims.length++; // To avoid to have a claim with 0 as index.
     }
     
     /** @dev Add good.
@@ -244,7 +245,7 @@ contract recover is IArbitrable {
         require(good.rewardAmount <= msg.value, "The ETH amount must be equal or higher than the reward");
 
         good.amountLocked += msg.value; // Locked the fund in this contract. 
-        goodIDtoClaimAcceptedID[_goodID] = claims.length++; // Adds the claim in the claim accepted collection.
+        goodIDtoClaimAcceptedID[_goodID] = _claimID; // Adds the claim in the claim accepted collection.
     }
     
     /** @dev Accept a claim a good.
