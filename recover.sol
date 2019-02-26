@@ -21,7 +21,7 @@ contract recover is IArbitrable {
     struct Good {
         address payable owner; // Owner of the good.
         uint rewardAmount; // Amount of the reward in ETH.
-        address addressForEncryption; // Address used to encrypt the link of description.
+        address addressForEncryption; // Address used to encrypt the link of description and to make a claim. 
         bytes descriptionLinkEncrypted; // Description link encrypted to chat/find the owner of the good (ex: IPFS URL encrypted with the description).
         uint[] claimIDs; // Collection of the claim to give back the good and get the reward.
         uint amountLocked; // Amount locked while a claim is accepted.
@@ -230,7 +230,7 @@ contract recover is IArbitrable {
             status: Status.NoDispute
         }));
 
-        good.claimIDs[good.claimIDs.length++] = claims.length; // Adds the claim in the collection of the claim ids for this good.
+        good.claimIDs[good.claimIDs.length++] = claims.length - 1; // Adds the claim in the collection of the claim ids for this good.
     }
     
     /** @dev Accept a claim a good.
