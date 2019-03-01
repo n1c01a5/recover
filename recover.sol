@@ -1,6 +1,5 @@
 pragma solidity ^0.4.25;
 
-// NOTE: import for solidity
 import {IArbitrable, Arbitrator} from "https://github.com/kleros/kleros-interaction/contracts/standard/arbitration/Arbitrator.sol";
 
 contract Recover is IArbitrable {
@@ -53,10 +52,10 @@ contract Recover is IArbitrable {
     mapping(bytes32 => uint) public goodIDtoClaimAcceptedID; // One-to-one relationship between the good and the claim accepted.
     mapping(uint => uint) public disputeIDtoClaimAcceptedID; // One-to-one relationship between the dispute and the claim accepted.
 
-    Claim[] claims; // Collection of the claims.
+    Claim[] public claims; // Collection of the claims.
     Arbitrator arbitrator; // Address of the arbitrator contract.
     bytes arbitratorExtraData; // Extra data to set up the arbitration.
-    uint feeTimeout; // Time in seconds a party can take to pay arbitration fees before being considered unresponding and lose the dispute.
+    uint public feeTimeout; // Time in seconds a party can take to pay arbitration fees before being considered unresponding and lose the dispute.
 
     // **************************** //
     // *          Events          * //
@@ -217,7 +216,7 @@ contract Recover is IArbitrable {
             status: Status.NoDispute
         }));
 
-        uint claimID = claims.length + 1; // claimID shall start from 1
+        uint claimID = claims.length - 1;
         good.claimIDs[good.claimIDs.length++] = claimID; // Adds the claim in the collection of the claim ids for this good.
 
         emit GoodClaimed(_goodID, _finder, claimID);
@@ -566,6 +565,10 @@ contract Recover is IArbitrable {
 
     function isGoodExist(bytes32 _goodID) public view returns (bool) {
         return goods[_goodID].exists;
+    }
+    
+    function getClaimsByGoodID(bytes32 _goodID) public view returns(uint[]) {
+        return  goods[_goodID].claimIDs;
     }
     
     function validateClaimMetaTransaction(
