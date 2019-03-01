@@ -1,9 +1,10 @@
-pragma solidity ^0.5.4;
+pragma solidity ^0.4.25;
 
-import {CentralizedArbitrator, IArbitrable, Arbitrator} from "./CentralizedArbitrator.sol";
+// NOTE: import for solidity
+import {IArbitrable, Arbitrator} from "https://github.com/kleros/kleros-interaction/contracts/standard/arbitration/Arbitrator.sol";
 
 contract Recover is IArbitrable {
-    
+
     // **************************** //
     // *    Contract variables    * //
     // **************************** //
@@ -17,18 +18,17 @@ contract Recover is IArbitrable {
     enum Party {Owner, Finder}
     // The different ruling for the dispute resolution.
     enum RulingOptions {NoRuling, OwnerWins, FinderWins}
-        
+
     struct Good {
-        address payable owner; // Owner of the good.
+        address owner; // Owner of the good.
         uint rewardAmount; // Amount of the reward in ETH.
-        address addressForEncryption; // Address used to encrypt the link of description and to make a claim. 
+        address addressForEncryption; // Address used to encrypt the link of description and to make a claim.
         string descriptionEncryptedLink; // Description encrypted link to chat/find the owner of the good (ex: IPFS URL with the encrypted description).
         uint[] claimIDs; // Collection of the claim to give back the good and get the reward.
         uint amountLocked; // Amount locked while a claim is accepted.
         uint timeoutLocked; // Timeout after which the finder can call the function `executePayment`.
         uint ownerFee; // Total fees paid by the owner of the good.
         bool exists; // Boolean to check if the good exists or not in the collection.
-        
     }
 
     struct Owner {
@@ -38,35 +38,29 @@ contract Recover is IArbitrable {
 
     struct Claim {
         bytes32 goodID; // Relation one-to-one with the good.
-        address payable finder; // Address of the good finder.
+        address finder; // Address of the good finder.
         string descriptionLink; // Public link description to proof we found the good (ex: IPFS URL with the content).
         uint lastInteraction; // Last interaction for the dispute procedure.
         uint finderFee; // Total fees paid by the finder.
         uint disputeID; // If dispute exists, the ID of the claim.
         Status status; // Status of the claim relative to a dispute.
     }
-    
+
     mapping(address => Owner) public owners; // Collection of the owners.
-    
+
     mapping(bytes32 => Good) public goods; // Collection of the goods.
-    
+
     mapping(bytes32 => uint) public goodIDtoClaimAcceptedID; // One-to-one relationship between the good and the claim accepted.
     mapping(uint => uint) public disputeIDtoClaimAcceptedID; // One-to-one relationship between the dispute and the claim accepted.
-    
+
     Claim[] claims; // Collection of the claims.
     Arbitrator arbitrator; // Address of the arbitrator contract.
     bytes arbitratorExtraData; // Extra data to set up the arbitration.
     uint feeTimeout; // Time in seconds a party can take to pay arbitration fees before being considered unresponding and lose the dispute.
-    
+
     // **************************** //
     // *          Events          * //
     // **************************** //
-
-    /** @dev To be emitted when meta-evidence is submitted.
-     *  @param _metaEvidenceID Unique identifier of meta-evidence. Should be the `transactionID`.
-     *  @param _evidence A link to the meta-evidence JSON that follows the ERC 1497 Evidence standard (https://github.com/ethereum/EIPs/issues/1497).
-     */
-    event MetaEvidence(uint indexed _metaEvidenceID, string _evidence);
 
     /** @dev Indicate that a party has to pay a fee or would otherwise be considered as losing.
      *  @param _transactionID The index of the transaction.
@@ -74,29 +68,8 @@ contract Recover is IArbitrable {
      */
     event HasToPayFee(uint indexed _transactionID, Party _party);
 
-    /** @dev To be raised when evidence is submitted. Should point to the resource (evidences are not to be stored on chain due to gas considerations).
-     *  @param _arbitrator The arbitrator of the contract.
-     *  @param _evidenceGroupID Unique identifier of the evidence group the evidence belongs to.
-     *  @param _party The address of the party submitting the evidence. Note that 0 is kept for evidences not submitted by any party.
-     *  @param _evidence A link to an evidence JSON that follows the ERC 1497 Evidence standard (https://github.com/ethereum/EIPs/issues/1497).
-     */
-    event Evidence(Arbitrator indexed _arbitrator, uint indexed _evidenceGroupID, address indexed _party, string _evidence);
+    event GoodClaimed(bytes32 indexed goodID, address indexed finder, uint claimID);
 
-    /** @dev To be emitted when a dispute is created to link the correct meta-evidence to the disputeID.
-     *  @param _arbitrator The arbitrator of the contract.
-     *  @param _disputeID ID of the dispute in the Arbitrator contract.
-     *  @param _metaEvidenceID Unique identifier of meta-evidence. Should be the transactionID.
-     *  @param _evidenceGroupID Unique identifier of the evidence group that is linked to this dispute.
-     */
-    event Dispute(Arbitrator indexed _arbitrator, uint indexed _disputeID, uint _metaEvidenceID, uint _evidenceGroupID);
-
-    /** @dev To be raised when a ruling is given.
-     *  @param _arbitrator The arbitrator giving the ruling.
-     *  @param _disputeID ID of the dispute in the Arbitrator contract.
-     *  @param _ruling The ruling which was given.
-     */
-    event Ruling(Arbitrator indexed _arbitrator, uint indexed _disputeID, uint _ruling);
-    
     // **************************** //
     // *    Contract functions    * //
     // *    Modifying the state   * //
@@ -117,7 +90,7 @@ contract Recover is IArbitrable {
         feeTimeout = _feeTimeout;
         claims.length++; // To avoid to have a claim with 0 as index.
     }
-    
+
     /** @dev Add good.
      *  @param _goodID The index of the good.
      *  @param _addressForEncryption Link to the meta-evidence.
@@ -153,7 +126,7 @@ contract Recover is IArbitrable {
         // Store the encrypted link in the meta-evidence.
         emit MetaEvidence(uint(_goodID), _descriptionEncryptedLink);
     }
-    
+
     /** @dev Change the address used to encrypt the description link and the description.
      *  @param _goodID The index of the good.
      *  @param _addressForEncryption Time after which a party can automatically execute the arbitrable transaction.
@@ -161,70 +134,79 @@ contract Recover is IArbitrable {
      */
     function changeAddressAndDescriptionEncrypted(
         bytes32 _goodID,
-        address _addressForEncryption, 
+        address _addressForEncryption,
         string memory _descriptionEncryptedLink
     ) public {
         Good storage good = goods[_goodID];
-        
+
         require(msg.sender == good.owner, "Must be the owner of the good.");
 
         good.addressForEncryption = _addressForEncryption;
         good.descriptionEncryptedLink = _descriptionEncryptedLink;
     }
-    
+
     /** @dev Change the reward amount of the good.
      *  @param _goodID The index of the good.
      *  @param _rewardAmount The amount of the reward for the good.
      */
     function changeRewardAmount(bytes32 _goodID, uint _rewardAmount) public {
         Good storage good = goods[_goodID];
-        
+
         require(msg.sender == good.owner, "Must be the owner of the good.");
 
         good.rewardAmount = _rewardAmount;
     }
-    
+
     /** @dev Change the reward amount of the good.
      *  @param _goodID The index of the good.
      *  @param _timeoutLocked Timeout after which the finder can call the function `executePayment`.
      */
     function changeTimeoutLocked(bytes32 _goodID, uint _timeoutLocked) public {
         Good storage good = goods[_goodID];
-        
+
         require(msg.sender == good.owner, "Must be the owner of the good.");
 
         good.timeoutLocked = _timeoutLocked;
     }
-    
+
     /** @dev Reset claims for a good.
      *  @param _goodID The ID of the good.
      */
     function resetClaims(bytes32 _goodID) public {
         Good storage good = goods[_goodID];
-        
+
         require(msg.sender == good.owner, "Must be the owner of the good.");
         require(0 == good.amountLocked, "Must have no accepted claim ongoing.");
-        
+
         good.claimIDs = new uint[](0);
     }
-    
+
     /** @dev Claim a good.
      *  @param _goodID The index of the good.
      *  @param _finder The address of the finder.
      *  @param _descriptionLink The link to the description of the good (optionnal).
      */
     function claim(
-        bytes32 _goodID, 
-        address payable _finder, 
+        bytes32 _goodID,
+        address _finder,
         string memory _descriptionLink
     ) public {
+        _claim(msg.sender, _goodID, _finder, _descriptionLink);
+    }
+
+    function _claim (
+        address claimerAddress,
+        bytes32 _goodID,
+        address _finder,
+        string memory _descriptionLink
+    ) private {
         Good storage good = goods[_goodID];
-        
+
         require(
-            msg.sender == good.addressForEncryption, 
+            claimerAddress == good.addressForEncryption,
             "Must be the same sender of the transaction than the address used to encrypt the message."
         );
-        
+
         claims.push(Claim({
             goodID: _goodID,
             finder: _finder,
@@ -235,40 +217,76 @@ contract Recover is IArbitrable {
             status: Status.NoDispute
         }));
 
-        good.claimIDs[good.claimIDs.length++] = claims.length - 1; // Adds the claim in the collection of the claim ids for this good.
+        uint claimID = claims.length + 1; // claimID shall start from 1
+        good.claimIDs[good.claimIDs.length++] = claimID; // Adds the claim in the collection of the claim ids for this good.
+
+        emit GoodClaimed(_goodID, _finder, claimID);
     }
-    
+
+    /** @dev Submimt a claim meta transaction
+     */
+    function claimMetaTransaction(
+        bytes32 _goodID,
+        address _finder,
+        string memory _descriptionLink,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s
+    ) public {
+        Good storage good = goods[_goodID];
+        
+        string memory errorReason = validateClaimMetaTransaction(
+            _goodID, 
+            _finder, 
+            _descriptionLink, 
+            v, 
+            r,
+            s
+        );
+        
+        if (bytes(errorReason).length > 0) {
+            revert(errorReason);
+        }
+
+        _claim(
+            good.addressForEncryption, 
+            _goodID,
+            _finder, 
+            _descriptionLink
+        );
+    }
+
     /** @dev Accept a claim a good.
      *  @param _goodID The index of the good.
      *  @param _claimID The index of the claim.
      */
     function acceptClaim(bytes32 _goodID, uint _claimID) payable public {
         Good storage good = goods[_goodID];
-        
+
         require(good.owner == msg.sender, "The sender of the transaction must be the owner of the good.");
         require(good.rewardAmount <= msg.value, "The ETH amount must be equal or higher than the reward");
 
-        good.amountLocked += msg.value; // Locked the fund in this contract. 
+        good.amountLocked += msg.value; // Locked the fund in this contract.
         goodIDtoClaimAcceptedID[_goodID] = _claimID; // Adds the claim in the claim accepted collection.
     }
-    
+
     /** @dev Accept a claim a good.
      *  @param _goodID The index of the good.
      *  @param _claimID The index of the claim .
      */
     function removeClaim(bytes32 _goodID, uint _claimID) public {
         Good storage good = goods[_goodID];
-        
+
         require(good.owner == msg.sender, "The sender of the transaction must be the owner of the good.");
         require(claims[_claimID].goodID == _goodID, "The claim of the good must matched with the good.");
         require(
-            0 == goodIDtoClaimAcceptedID[_goodID], 
+            0 == goodIDtoClaimAcceptedID[_goodID],
             "The claim must not be accepted"
         );
 
         delete good.claimIDs[_claimID]; // Removes this claim in the claim collection for this good.
     }
-    
+
     /** @dev Pay finder. To be called if the good has been returned.
      *  @param _goodID The index of the good.
      *  @param _amount Amount to pay in wei.
@@ -280,12 +298,12 @@ contract Recover is IArbitrable {
         require(good.owner == msg.sender, "The caller must be the owner of the good.");
         require(goodClaim.status == Status.NoDispute, "The transaction of the good can't be disputed.");
         require(
-            _amount <= good.amountLocked, 
+            _amount <= good.amountLocked,
             "The amount paid has to be less than or equal to the amount locked."
         );
 
         // Checks-Effects-Interactions to avoid reentrancy.
-        address payable finder = goodClaim.finder; // Address of the finder.
+        address finder = goodClaim.finder; // Address of the finder.
 
         finder.transfer(_amount); // Transfer the fund to the finder.
         good.amountLocked -= _amount;
@@ -295,7 +313,7 @@ contract Recover is IArbitrable {
         }
         // NOTE: We keep the others claims because maybe the owner lost several goods with the same `goodID`.
     }
-    
+
     /** @dev Reimburse owner of the good. To be called if the good can't be fully returned.
      *  @param _goodID The index of the good.
      *  @param _amountReimbursed Amount to reimburse in wei.
@@ -307,11 +325,11 @@ contract Recover is IArbitrable {
         require(goodClaim.finder == msg.sender, "The caller must be the finder of the good.");
         require(goodClaim.status == Status.NoDispute, "The transaction good can't be disputed.");
         require(
-            _amountReimbursed <= good.amountLocked, 
+            _amountReimbursed <= good.amountLocked,
             "The amount paid has to be less than or equal to the amount locked."
         );
 
-        address payable owner = good.owner; // Address of the owner.
+        address owner = good.owner; // Address of the owner.
 
         owner.transfer(_amountReimbursed);
 
@@ -339,7 +357,7 @@ contract Recover is IArbitrable {
     /* Section of Negociation or Dispute Resolution */
 
     /** @dev Pay the arbitration fee to raise a dispute. To be called by the owner. UNTRUSTED.
-     *  Note that the arbitrator can have createDispute throw, 
+     *  Note that the arbitrator can have createDispute throw,
      *  which will make this function throw and therefore lead to a party being timed-out.
      *  This is not a vulnerability as the arbitrator can rule in favor of one party anyway.
      *  @param _goodID The index of the transaction.
@@ -351,7 +369,7 @@ contract Recover is IArbitrable {
         uint arbitrationCost = arbitrator.arbitrationCost(arbitratorExtraData);
 
         require(
-            goodClaim.status < Status.DisputeCreated, 
+            goodClaim.status < Status.DisputeCreated,
             "Dispute has already been created or because the transaction of the good has been executed."
         );
         require(goodClaim.goodID == _goodID, "The claim of the good must matched with the good.");
@@ -382,7 +400,7 @@ contract Recover is IArbitrable {
         uint arbitrationCost = arbitrator.arbitrationCost(arbitratorExtraData);
 
         require(
-            goodClaim.status < Status.DisputeCreated, 
+            goodClaim.status < Status.DisputeCreated,
             "Dispute has already been created or because the transaction has been executed."
         );
         require(goodClaim.goodID == _goodID, "The claim of the good must matched with the good.");
@@ -403,7 +421,7 @@ contract Recover is IArbitrable {
             raiseDispute(_goodID, arbitrationCost);
         }
     }
-    
+
     /** @dev Reimburse owner of the good if the finder fails to pay the fee.
      *  @param _goodID The index of the good.
      */
@@ -412,11 +430,11 @@ contract Recover is IArbitrable {
         Claim storage goodClaim = claims[goodIDtoClaimAcceptedID[_goodID]];
 
         require(
-            goodClaim.status == Status.WaitingFinder, 
+            goodClaim.status == Status.WaitingFinder,
             "The transaction of the good must waiting on the finder."
         );
         require(now - goodClaim.lastInteraction >= feeTimeout, "Timeout time has not passed yet.");
-        
+
         executeRuling(goodIDtoClaimAcceptedID[_goodID], uint(RulingOptions.OwnerWins));
     }
 
@@ -428,7 +446,7 @@ contract Recover is IArbitrable {
         Claim storage goodClaim = claims[goodIDtoClaimAcceptedID[_goodID]];
 
         require(
-            goodClaim.status == Status.WaitingOwner, 
+            goodClaim.status == Status.WaitingOwner,
             "The transaction of the good must waiting on the owner of the good."
         );
         require(now - goodClaim.lastInteraction >= feeTimeout, "Timeout time has not passed yet.");
@@ -473,7 +491,7 @@ contract Recover is IArbitrable {
         Claim storage goodClaim = claims[goodIDtoClaimAcceptedID[_goodID]];
 
         require(
-            msg.sender == good.owner || msg.sender == goodClaim.finder, 
+            msg.sender == good.owner || msg.sender == goodClaim.finder,
             "The caller must be the owner of the good or the finder."
         );
 
@@ -490,10 +508,10 @@ contract Recover is IArbitrable {
         Claim storage goodClaim = claims[goodIDtoClaimAcceptedID[_goodID]];
 
         require(
-            msg.sender == goods[goodClaim.goodID].owner || msg.sender == goodClaim.finder, 
+            msg.sender == goods[goodClaim.goodID].owner || msg.sender == goodClaim.finder,
             "The caller must be the owner of the good or the finder."
         );
-        
+
         arbitrator.appeal.value(msg.value)(goodClaim.disputeID, arbitratorExtraData);
     }
 
@@ -541,12 +559,32 @@ contract Recover is IArbitrable {
         goodClaim.finderFee = 0;
         goodClaim.status = Status.Resolved;
     }
-    
+
     // **************************** //
     // *     View functions       * //
     // **************************** //
-    
+
     function isGoodExist(bytes32 _goodID) public view returns (bool) {
         return goods[_goodID].exists;
+    }
+    
+    function validateClaimMetaTransaction(
+        bytes32 _goodID,
+        address _finder,
+        string memory _descriptionLink,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s
+    ) public view returns (string memory errorReason) {
+        Good storage good = goods[_goodID];
+        
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+        bytes32 msgHash = keccak256(abi.encode(_goodID, _finder, _descriptionLink));
+        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, msgHash));
+       
+        if (ecrecover(prefixedHash, v, r, s) != good.addressForEncryption)
+            return "Invalid signature";
+
+        return "";
     }
 }
